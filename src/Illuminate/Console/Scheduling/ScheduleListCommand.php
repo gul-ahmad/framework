@@ -75,6 +75,10 @@ class ScheduleListCommand extends Command
         $this->line(
             $events->flatten()->filter()->prepend('')->push('')->toArray()
         );
+
+        // $linesToPrint = $events->flatten()->filter()->prepend('')->push('')->toArray();
+        // dump('VERBOSE TEST OUTPUT:', $linesToPrint); // <<< ADD THIS
+        // $this->line($linesToPrint);
     }
 
     /**
@@ -152,8 +156,11 @@ class ScheduleListCommand extends Command
         // Highlight the parameters...
         $command = preg_replace("#(php artisan [\w\-:]+) (.+)#", '$1 <fg=yellow;options=bold>$2</>', $command);
 
-        return [sprintf(
-            '  <fg=yellow>%s</> <fg=#6C7280>%s</> %s<fg=#6C7280>%s %s%s %s</>',
+        $linesToReturn = []; // << CORRECT: Initialize as an array
+
+        // 2. Add the main display line (using original sprintf logic).
+        $linesToReturn[] = sprintf( // << CORRECT: Append as first element
+            '  <fg=yellow>%s</> <fg=#6C7280>%s</> %s<fg=#6C7280>%s %s%s %s</>', // Original format
             $expression,
             $repeatExpression,
             $command,
@@ -161,12 +168,47 @@ class ScheduleListCommand extends Command
             $hasMutex,
             $nextDueDateLabel,
             $nextDueDate
-        ), $this->output->isVerbose() && mb_strlen($description) > 1 ? sprintf(
+        );
+       // 3. Add the original verbose description if applicable.
+       if ($this->output->isVerbose() && mb_strlen($description) > 1) {
+        $linesToReturn[] = sprintf( // << CORRECT: Append
             '  <fg=#6C7280>%s%s %s</>',
             str_repeat(' ', mb_strlen($expression) + 2),
             '⇁',
             $description
-        ) : ''];
+        );
+    }
+
+    // 4. *** OUR NEW ADDITION: If verbose, add our custom modifier lines. ***
+    if ($this->output->isVerbose()) {
+        $customVerboseModifiers = $this->compileVerboseModifiers($event);
+        foreach ($customVerboseModifiers as $modifierLine) {
+            $linesToReturn[] = sprintf( // << CORRECT: Append
+                '  <fg=#9CA3AF>%s%s</>',
+                str_repeat(' ', mb_strlen($expression) + 2 + 2),
+                $modifierLine
+            );
+        }
+    }
+
+    // 5. Return the array of lines.
+    return $linesToReturn;
+
+        // return [sprintf(
+        //     '  <fg=yellow>%s</> <fg=#6C7280>%s</> %s<fg=#6C7280>%s %s%s %s</>',
+        //     $expression,
+        //     $repeatExpression,
+        //     $command,
+        //     $dots,
+        //     $hasMutex,
+        //     $nextDueDateLabel,
+        //     $nextDueDate
+        // ), $this->output->isVerbose() && mb_strlen($description) > 1 ? sprintf(
+        //     '  <fg=#6C7280>%s%s %s</>',
+        //     str_repeat(' ', mb_strlen($expression) + 2),
+        //     '⇁',
+        //     $description
+        // ) : ''];
     }
 
     /**
@@ -301,4 +343,33 @@ class ScheduleListCommand extends Command
     {
         static::$terminalWidthResolver = $resolver;
     }
+
+    /**
+ * Compile the verbose modifier descriptions for a scheduled event.
+ *
+ * @param  \Illuminate\Console\Scheduling\Event  $event
+ * @return array<int, string> An array of descriptive strings.
+ */
+    protected function compileVerboseModifiers(Event $event): array
+    {
+        $modifierLines = [];
+
+        if ($event->withoutOverlapping) { // We show the SETTING here
+            $modifierLines[] = '- Overlap Prevention: Enabled';
+        }
+
+        if ($event->onOneServer) {
+            $modifierLines[] = '- Runs on One Server: Yes';
+        }
+
+        if ($event->evenInMaintenanceMode) {
+            $modifierLines[] = '- Runs in Maintenance Mode: Yes';
+        }
+
+        if ($event->runInBackground) {
+            $modifierLines[] = '- Runs in Background: Yes';
+        }
+
+        return $modifierLines;
+   }
 }

@@ -153,6 +153,74 @@ class ScheduleListCommandTest extends TestCase
             ->expectsOutput('  0 *   * * * 20s  php artisan six ............. Next Due: 20 seconds from now')
             ->expectsOutput('  * */3 * * * 1s   php artisan six ............... Next Due: 1 second from now');
     }
+    public function testDisplayScheduleWithOnOneServerModifier()
+    {
+        $this->schedule->command(FooCommand::class)
+        ->everyMinute()
+        ->onOneServer()
+        ->description('Test On One Server Command');
+
+    // Forcing a failure with a message to see the ACTUAL output from PendingCommand
+    // Temporarily change one of the expected strings to something that will definitely fail
+    // so PHPUnit shows us the full actual output in its diff.
+    $this->artisan(ScheduleListCommand::class, ['-v' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain("foo:command")
+        ->expectsOutputToContain("THIS_WILL_FAIL_SHOW_ME_OUTPUT_Next Due: ".now()->setMinute(1)->setSecond(0)->format('Y-m-d H:i:s P')) // << Made this fail
+        ->expectsOutput("             ⇁ Test On One Server Command")
+        ->expectsOutput("               - Runs on One Server: Yes");
+    }
+
+    public function testDisplayScheduleWithMaintenanceModeModifier()
+    {
+        $this->schedule->command(FooCommand::class)
+             ->everyMinute()
+             ->evenInMaintenanceMode()
+             ->description('Test Maint Mode Command');
+
+       $this->artisan(ScheduleListCommand::class, ['-v' => true])
+           ->assertSuccessful()
+           ->expectsOutputToContain("foo:command") // Checks for the command name part
+           ->expectsOutputToContain("Next Due: ".now()->setMinute(1)->setSecond(0)->format('Y-m-d H:i:s P')) // Checks for the
+           ->expectsOutput("             ⇁ Test Maint Mode Command")
+           ->expectsOutput("               - Runs in Maintenance Mode: Yes");
+    }
+
+    public function testDisplayScheduleWithInBackgroundModifier()
+    {
+        $this->schedule->command(FooCommand::class)
+        ->everyMinute()
+        ->runInBackground()
+        ->description('Test InBackground Command');
+
+    $this->artisan(ScheduleListCommand::class, ['-v' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain("foo:command") // Checks for the command name part
+        ->expectsOutputToContain("Next Due: ".now()->setMinute(1)->setSecond(0)->format('Y-m-d H:i:s P')) // Checks for the
+        ->expectsOutput("             ⇁ Test InBackground Command")
+        ->expectsOutput("               - Runs in Background: Yes");
+    }
+
+    public function testDisplayScheduleWithMultipleModifiers()
+    {
+        $this->schedule->command(FooCommand::class)
+        ->everyMinute()
+        ->withoutOverlapping() // Included this for the test
+        ->onOneServer()
+        ->runInBackground()
+        ->evenInMaintenanceMode()
+        ->description('Test Multiple Modifiers Command');
+
+    $this->artisan(ScheduleListCommand::class, ['-v' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain("foo:command") // Checks for the command name part
+        ->expectsOutputToContain("Next Due: ".now()->setMinute(1)->setSecond(0)->format('Y-m-d H:i:s P')) // Checks for the
+        ->expectsOutput("             ⇁ Test Multiple Modifiers Command")
+        ->expectsOutput("               - Overlap Prevention: Enabled")
+        ->expectsOutput("               - Runs on One Server: Yes")
+        ->expectsOutput("               - Runs in Maintenance Mode: Yes")
+        ->expectsOutput("               - Runs in Background: Yes");
+    }
 
     protected function tearDown(): void
     {
